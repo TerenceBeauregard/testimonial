@@ -89,6 +89,7 @@ model Product {
 model Review {
   id         String   @id @default(cuid())
   ratting    Int
+  ip         String
   text       String?
   // audio URL
   audio      String?
