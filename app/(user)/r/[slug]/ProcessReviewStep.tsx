@@ -1,28 +1,54 @@
 "use client";
 
 import { Product } from "@prisma/client";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
 import { useState } from "react";
+import { useLocalStorage } from "react-use";
+import { toast } from "sonner";
 import RatingSelector from "./RatingSelector";
 import { ReviexTextSelector } from "./ReviewTextSelector";
 import { SocialSelector } from "./SocialSelector";
+import { ReviewType } from "./review.schema";
+import { getReviewAction, updateReviewAction } from "./reviews.action";
 
-type Data = {
-	review: null | number;
-	name: string;
-	socialLink: string;
-};
+export const ProcessReviewStep = ({ product }: { product: Product }) => {
+	const [reviewId, serReviewId, removeReviewId] = useLocalStorage(
+		`review-id-${product.id}`,
+		null
+	);
 
-export const ReviewStep = ({ product }: { product: Product }) => {
-	const [step, setStep] = useState(0);
-	const [data, setData] = useState<Data>({
-		review: null,
-		name: "",
-		socialLink: "",
+	const queryClient = useQueryClient();
+	const reviewData = useQuery({
+		queryKey: ["review", reviewId, "product", product.id],
+		enabled: Boolean(reviewId),
+		queryFn: async () =>
+			getReviewAction({ id: reviewId ?? "", productId: product.id }),
 	});
 
-	const updateData = (partial: Partial<Data>) => {
-		setData((prev) => ({ ...prev, ...partial }));
+	const mutateReview = useMutation({
+		mutationFn: async (data: Partial<ReviewType>) => {
+			const { data: actionData, serverError } = await updateReviewAction({
+				...data,
+				productId: product.id,
+				id: reviewId ?? undefined,
+			});
+
+			if (!actionData || serverError) {
+				toast.error("Failed to update review");
+				return;
+			}
+
+			await queryClient.invalidateQueries({
+				queryKey: ["review", reviewId, "product", product.id],
+			});
+		},
+	});
+
+	const [step, setStep] = useState(0);
+
+	const updateData = (partial: Partial<ReviewType>) => {
+		mutateReview.mutate(partial);
 	};
 
 	return (
@@ -40,7 +66,7 @@ export const ReviewStep = ({ product }: { product: Product }) => {
 					<RatingSelector
 						onSelect={(review) => {
 							setStep(1);
-							updateData({ review });
+							updateData({ rating: review });
 						}}
 					/>
 				</motion.div>

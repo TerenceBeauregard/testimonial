@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useState } from "react";
 import { AudioRecorder, useAudioRecorder } from "react-audio-voice-recorder";
 
 export type ReviewTextSelectorProps = {};
@@ -29,12 +30,18 @@ const AudioRecorderControl = ({
 }: {
 	onAudioFinish: (audio: Blob) => void;
 }) => {
+	const [blob, setBlob] = useState<Blob | null>(null);
+
 	const recorderControls = useAudioRecorder();
 
 	return (
 		<div className="flex flex-col items-center gap-2">
+			{blob && <audio src={URL.createObjectURL(blob)} controls />},
 			<AudioRecorder
-				onRecordingComplete={(blob) => onAudioFinish(blob)}
+				onRecordingComplete={(blob) => {
+					onAudioFinish(blob);
+					setBlob(blob);
+				}}
 				recorderControls={recorderControls}
 			/>
 			{recorderControls.isRecording && (
@@ -46,6 +53,15 @@ const AudioRecorderControl = ({
 					Stop recording
 				</Button>
 			)}
+			{blob ? (
+				<Button
+					variant="ghost"
+					size="sm"
+					onClick={recorderControls.stopRecording}
+				>
+					Submit
+				</Button>
+			) : null}
 		</div>
 	);
 };
