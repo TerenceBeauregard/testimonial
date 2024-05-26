@@ -3,6 +3,7 @@
 import { prisma } from "@/prisma";
 import { ActionError, action } from "@/safe-actions";
 import { Review } from "@prisma/client";
+import { headers } from "next/headers";
 import { z } from "zod";
 import { ReviewSchemas } from "./review.schema";
 
@@ -28,7 +29,7 @@ export const getReviewAction = action(
 );
 
 export const updateReviewAction = action(ReviewSchemas, async (input) => {
-	const headerList = new Headers();
+	const headerList = headers();
 	const userIp =
 		headerList.get("x-real-ip") || headerList.get("x-forwarded-for");
 
@@ -75,4 +76,53 @@ export const updateReviewAction = action(ReviewSchemas, async (input) => {
 			},
 		});
 	}
+
+	return review;
 });
+
+export const processAudioAction = action(
+	z.object({
+		formData: z.instanceof(FormData),
+		reviewId: z.string(),
+		productId: z.string(),
+	}),
+	async (input) => {
+		const headerList = headers();
+		const userIp =
+			headerList.get("x-real-ip") || headerList.get("x-forwarded-for");
+
+		if (!userIp) {
+			throw new ActionError("User IP not found");
+		}
+
+		const review = await prisma.review.findUnique({
+			where: {
+				id: input.reviewId,
+				productId: input.productId,
+				ip: userIp,
+			},
+		});
+
+		if (!review) {
+			throw new ActionError("Review not found");
+		}
+
+		if (review.text) {
+			throw new ActionError("Review already has text");
+		}
+
+		const response = await fetch(
+			`${process.env.NEXT_PUBLIC_API_URL}/audio/process`,
+			{
+				method: "POST",
+				body: input.formData,
+			}
+		);
+
+		if (!response.ok) {
+			throw new ActionError("Failed to process audio");
+		}
+
+		return review;
+	}
+);
