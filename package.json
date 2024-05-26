@@ -48,6 +48,7 @@
     "next-safe-action": "^6.2.0",
     "next-themes": "^0.3.0",
     "npm": "^10.7.0",
+    "openai": "^4.47.1",
     "react": "^18",
     "react-audio-voice-recorder": "^2.2.0",
     "react-dom": "^18",

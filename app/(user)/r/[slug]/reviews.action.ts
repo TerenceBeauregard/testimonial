@@ -1,5 +1,6 @@
 "use server";
 
+import { openai } from "@/openai";
 import { prisma } from "@/prisma";
 import { ActionError, action } from "@/safe-actions";
 import { Review } from "@prisma/client";
@@ -101,6 +102,14 @@ export const processAudioAction = action(
 				productId: input.productId,
 				ip: userIp,
 			},
+			include: {
+				product: {
+					select: {
+						name: true,
+						id: true,
+					},
+				},
+			},
 		});
 
 		if (!review) {
@@ -111,17 +120,43 @@ export const processAudioAction = action(
 			throw new ActionError("Review already has text");
 		}
 
-		const response = await fetch(
-			`${process.env.NEXT_PUBLIC_API_URL}/audio/process`,
-			{
-				method: "POST",
-				body: input.formData,
-			}
-		);
+		const audioFile = input.formData.get("audio");
 
-		if (!response.ok) {
-			throw new ActionError("Failed to process audio");
+		const result = await openai.audio.transcriptions.create({
+			file: audioFile as any,
+			model: "whisper-1",
+		});
+
+		if (!result.text) {
+			throw new ActionError("Failed to transcribe audio");
 		}
+
+		const finalResult = await openai.chat.completions.create({
+			model: "gpt-3.5-turbo",
+			temperature: 0.7,
+			messages: [
+				{
+					role: "system",
+					content: `Context : Your are a transcriptionist and you are transcribing an audio for an product, the audiio is about the product ${review.product.name}. 
+					Goal: You need to transcribe the audio into a written review for the product.
+					Criteria: 1.The review should be detailed and informative. 2.The review must respect what the customer said in th audio`,
+				},
+				{
+					role: "user",
+					content: result.text,
+				},
+			],
+		});
+
+		const resultText = finalResult.choices[0].message.content;
+		await prisma.review.update({
+			where: {
+				id: input.reviewId,
+			},
+			data: {
+				text: resultText,
+			},
+		});
 
 		return review;
 	}

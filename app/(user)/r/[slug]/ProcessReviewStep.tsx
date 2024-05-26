@@ -148,7 +148,7 @@ export const ProcessReviewStep = ({ product }: { product: Product }) => {
 							{product.reviewText ??
 								"Tell me what you liked and what you disliked?"}
 						</h2>
-						<ReviexTextSelector />
+						<ReviexTextSelector productId={product.id} />
 					</motion.div>
 				)}
 			</AnimatePresence>
